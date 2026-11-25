@@ -326,8 +326,35 @@
       background: var(--bg);
     }
 
+    .past-date-toggle {
+      margin-top: 18px;
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-decoration: underline;
+    }
+
+    .past-date-toggle:hover {
+      color: var(--text);
+    }
+
+    .past-date-box {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .past-date-label {
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
     .last-entry-note {
-      margin-top: 20px;
+      margin-top: 18px;
       font-size: 0.8rem;
       color: var(--muted);
     }
@@ -575,6 +602,7 @@
       activeCounterId: null,
       activeTab: "count",
       sheetMode: "log",
+      showPastDateForm: false,
       editingCounterId: null,
       selectedColor: COLORS[0],
       unsubscribeSnapshot: null
@@ -622,6 +650,10 @@
       render();
     });
 
+    function getSortedEntries(counter) {
+      return [...(counter.entries || [])].sort((a, b) => a.timestamp - b.timestamp);
+    }
+
     function getTotal(counter) {
       return (counter.entries || []).reduce((sum, e) => sum + e.delta, 0);
     }
@@ -634,18 +666,32 @@
       };
     }
 
+    function toLocalDateTimeInputValue(d = new Date()) {
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function parseLocalDateTimeInput(val) {
+      const [datePart, timePart] = val.split("T");
+      if (!datePart || !timePart) return NaN;
+      const [y, m, d] = datePart.split("-").map(Number);
+      const [hh, mm] = timePart.split(":").map(Number);
+      return new Date(y, m - 1, d, hh, mm, 0, 0).getTime();
+    }
+
     function escapeHtml(str) {
       return String(str).replace(/[&<>"']/g, m => ({
         "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
       }[m]));
     }
 
-    async function addEntry(counterId, amount) {
+    async function addEntry(counterId, amount, customTimestamp = null) {
       const num = Number(amount);
-      if (!Number.isFinite(num) || num === 0 || !state.user) return;
+      const ts = customTimestamp !== null ? customTimestamp : Date.now();
+      if (!Number.isFinite(num) || num === 0 || !Number.isFinite(ts) || !state.user) return;
       const newEntry = {
         id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-        timestamp: Date.now(),
+        timestamp: ts,
         delta: num
       };
       const ref = doc(db, "users", state.user.uid, "counters", counterId);
@@ -661,7 +707,7 @@
     function exportCSV(counter) {
       const rows = [["Date", "Time", "ISO Timestamp", "Added", "Running Total"]];
       let running = 0;
-      counter.entries.forEach(e => {
+      getSortedEntries(counter).forEach(e => {
         running += e.delta;
         const d = new Date(e.timestamp);
         rows.push([
@@ -869,6 +915,7 @@
         btn.addEventListener("click", () => {
           state.activeCounterId = btn.dataset.openId;
           state.activeTab = "count";
+          state.showPastDateForm = false;
           render();
         });
       });
@@ -876,13 +923,25 @@
 
     function renderDetail(app, counter) {
       const total = getTotal(counter);
-      const lastEntry = counter.entries[counter.entries.length - 1];
+      const sorted = getSortedEntries(counter);
+      const lastEntry = sorted[sorted.length - 1];
       const lastText = lastEntry
-        ? `Last added ${lastEntry.delta > 0 ? "+" : ""}${lastEntry.delta} on ${formatDateTime(lastEntry.timestamp).date} at ${formatDateTime(lastEntry.timestamp).time}`
+        ? `Latest: ${lastEntry.delta > 0 ? "+" : ""}${lastEntry.delta} on ${formatDateTime(lastEntry.timestamp).date} at ${formatDateTime(lastEntry.timestamp).time}`
         : "No entries recorded yet";
 
       let bodyHtml = "";
       if (state.activeTab === "count") {
+        const pastFormHtml = state.showPastDateForm ? `
+          <form class="past-date-box" id="past-date-form">
+            <label class="past-date-label" for="past-datetime-input">Date &amp; Time</label>
+            <input class="input" id="past-datetime-input" type="datetime-local" value="${toLocalDateTimeInputValue()}" required />
+            <div class="custom-add-row">
+              <input class="input" id="past-amount-input" type="number" step="any" value="1" placeholder="Amount" required />
+              <button class="btn-add-custom" type="submit">Add Past</button>
+            </div>
+          </form>
+        ` : "";
+
         bodyHtml = `
           <div class="counter-panel">
             <div class="big-total" style="color:${counter.color}">${total}</div>
@@ -891,6 +950,10 @@
               <input class="input" id="custom-amount-input" type="number" step="any" placeholder="Specific number (e.g. 5)" required />
               <button class="btn-add-custom" type="submit">Add</button>
             </form>
+            <button type="button" class="past-date-toggle" id="toggle-past-date-btn">
+              ${state.showPastDateForm ? "Hide past date" : "Log past date..."}
+            </button>
+            ${pastFormHtml}
             <div class="last-entry-note">${lastText}</div>
           </div>
         `;
@@ -919,6 +982,7 @@
 
       document.getElementById("back-btn").addEventListener("click", () => {
         state.activeCounterId = null;
+        state.showPastDateForm = false;
         render();
       });
 
@@ -940,6 +1004,22 @@
           input.value = "";
           addEntry(counter.id, val);
         });
+        document.getElementById("toggle-past-date-btn").addEventListener("click", () => {
+          state.showPastDateForm = !state.showPastDateForm;
+          render();
+        });
+        const pastForm = document.getElementById("past-date-form");
+        if (pastForm) {
+          pastForm.addEventListener("submit", e => {
+            e.preventDefault();
+            const dtVal = document.getElementById("past-datetime-input").value;
+            const amtVal = document.getElementById("past-amount-input").value;
+            const ts = parseLocalDateTimeInput(dtVal);
+            if (!Number.isFinite(ts)) return;
+            state.showPastDateForm = false;
+            addEntry(counter.id, amtVal, ts);
+          });
+        }
       } else {
         attachSheetListeners(app, counter);
       }
@@ -952,6 +1032,7 @@
 
       let tableRows = "";
       let headerCols = "";
+      const sorted = getSortedEntries(counter);
 
       if (state.sheetMode === "log") {
         headerCols = `
@@ -961,7 +1042,7 @@
           <th></th>
         `;
         let running = 0;
-        const enriched = counter.entries.map(e => {
+        const enriched = sorted.map(e => {
           running += e.delta;
           return { ...e, running };
         }).reverse();
@@ -986,7 +1067,7 @@
           <th class="num-col">Day Total</th>
         `;
         const byDay = {};
-        counter.entries.forEach(e => {
+        sorted.forEach(e => {
           const d = new Date(e.timestamp);
           const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
           if (!byDay[key]) {
