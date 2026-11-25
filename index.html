@@ -112,7 +112,24 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
       padding: 28px 24px;
-      margin-top: 40px;
+      margin-top: 28px;
+    }
+
+    .auth-intro {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 22px;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+
+    .auth-intro strong {
+      color: var(--text);
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 600;
     }
 
     .auth-card h1 {
@@ -122,7 +139,7 @@
     .auth-sub {
       color: var(--muted);
       font-size: 0.9rem;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
     }
 
     .auth-error {
@@ -153,6 +170,79 @@
       color: var(--text);
       font-weight: 600;
       text-decoration: underline;
+    }
+
+    /* Welcome Card */
+    .welcome-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 24px;
+    }
+
+    .welcome-card h2 {
+      font-size: 1.25rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+
+    .welcome-lead {
+      color: var(--muted);
+      font-size: 0.925rem;
+      margin-bottom: 20px;
+    }
+
+    .welcome-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .welcome-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
+
+    .welcome-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      margin-top: 7px;
+      flex-shrink: 0;
+    }
+
+    .welcome-features strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .welcome-start {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin-bottom: 18px;
+      font-size: 0.86rem;
+      color: var(--muted);
+    }
+
+    .welcome-start strong {
+      color: var(--text);
+    }
+
+    .welcome-cta {
+      width: 100%;
+      padding: 13px;
+      border-radius: 10px;
+      font-size: 0.95rem;
     }
 
     /* Home List */
@@ -326,18 +416,18 @@
       background: var(--bg);
     }
 
-    .past-date-toggle {
+    .subtle-link {
       margin-top: 18px;
       font-size: 0.85rem;
       color: var(--muted);
       text-decoration: underline;
     }
 
-    .past-date-toggle:hover {
+    .subtle-link:hover {
       color: var(--text);
     }
 
-    .past-date-box {
+    .inline-drawer {
       margin-top: 16px;
       padding-top: 16px;
       border-top: 1px solid var(--border);
@@ -347,7 +437,7 @@
       gap: 10px;
     }
 
-    .past-date-label {
+    .drawer-label {
       font-size: 0.78rem;
       font-weight: 500;
       color: var(--muted);
@@ -357,6 +447,35 @@
       margin-top: 18px;
       font-size: 0.8rem;
       color: var(--muted);
+    }
+
+    .stat-note {
+      margin-top: 6px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .stat-note strong {
+      font-weight: 650;
+    }
+
+    .goal-sub-link {
+      margin-top: 6px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-decoration: underline;
+      display: inline-block;
+    }
+
+    .goal-sub-link:hover {
+      color: var(--text);
+    }
+
+    .goal-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 4px;
     }
 
     /* Sheet View */
@@ -603,6 +722,7 @@
       activeTab: "count",
       sheetMode: "log",
       showPastDateForm: false,
+      showGoalForm: false,
       editingCounterId: null,
       selectedColor: COLORS[0],
       unsubscribeSnapshot: null
@@ -650,12 +770,44 @@
       render();
     });
 
+    function roundClean(num) {
+      return Math.round(num * 1e6) / 1e6;
+    }
+
     function getSortedEntries(counter) {
       return [...(counter.entries || [])].sort((a, b) => a.timestamp - b.timestamp);
     }
 
     function getTotal(counter) {
-      return (counter.entries || []).reduce((sum, e) => sum + e.delta, 0);
+      return roundClean((counter.entries || []).reduce((sum, e) => sum + e.delta, 0));
+    }
+
+    function toLocalDayKey(d) {
+      const pad = n => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    }
+
+    function getDayStreak(counter) {
+      const entries = counter.entries || [];
+      if (entries.length === 0) return 0;
+
+      const loggedDays = new Set(entries.map(e => toLocalDayKey(new Date(e.timestamp))));
+      const now = new Date();
+      let cursor = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+      if (!loggedDays.has(toLocalDayKey(cursor))) {
+        cursor.setDate(cursor.getDate() - 1);
+        if (!loggedDays.has(toLocalDayKey(cursor))) {
+          return 0;
+        }
+      }
+
+      let streak = 0;
+      while (loggedDays.has(toLocalDayKey(cursor))) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      return streak;
     }
 
     function formatDateTime(ts) {
@@ -704,11 +856,17 @@
       await updateDoc(ref, { entries: arrayRemove(entryObj) });
     }
 
+    async function saveGoal(counterId, goalValue) {
+      if (!state.user) return;
+      const ref = doc(db, "users", state.user.uid, "counters", counterId);
+      await updateDoc(ref, { goal: goalValue });
+    }
+
     function exportCSV(counter) {
       const rows = [["Date", "Time", "ISO Timestamp", "Added", "Running Total"]];
       let running = 0;
       getSortedEntries(counter).forEach(e => {
-        running += e.delta;
+        running = roundClean(running + e.delta);
         const d = new Date(e.timestamp);
         rows.push([
           d.toLocaleDateString(),
@@ -792,7 +950,8 @@
           name,
           color: state.selectedColor,
           createdAt: Date.now(),
-          entries: []
+          entries: [],
+          goal: null
         });
       }
     });
@@ -832,8 +991,16 @@
       const isSignUp = state.authMode === "signup";
       app.innerHTML = `
         <div class="auth-card">
+          <div class="auth-intro">
+            <strong>Welcome to Counters</strong>
+            Track anything with simple, color-coded counters. Every tap saves a timestamp so you can review daily tendencies in a sheet—synced across your iPhone and computer.
+          </div>
           <h1>${isSignUp ? "Create Account" : "Sign In"}</h1>
-          <p class="auth-sub">Sync your counters across your iPhone and computer.</p>
+          <p class="auth-sub">
+            ${isSignUp
+              ? "Start by creating a free account to save and sync your counters."
+              : "Sign in to access your counters, or create an account below if it's your first time."}
+          </p>
           ${state.authError ? `<div class="auth-error">${escapeHtml(state.authError)}</div>` : ""}
           <form id="auth-form">
             <div class="field">
@@ -885,7 +1052,30 @@
 
     function renderHome(app) {
       const listHtml = state.counters.length === 0
-        ? `<div class="empty-state">No counters yet. Create one to start tracking.</div>`
+        ? `
+          <div class="welcome-card">
+            <h2>Welcome to Counters</h2>
+            <p class="welcome-lead">A minimal space to count habits, workouts, water, inventory, or anything else you want to track over time.</p>
+            <ul class="welcome-features">
+              <li>
+                <span class="welcome-dot" style="background:#2563eb"></span>
+                <span><strong>Tap +1, custom amounts, or past dates:</strong> Log counts instantly or backfill missed days whenever you need.</span>
+              </li>
+              <li>
+                <span class="welcome-dot" style="background:#0d9488"></span>
+                <span><strong>Automatic timestamp sheet:</strong> Open any counter's <em>Sheet</em> tab to view a full log, daily totals, or export to CSV.</span>
+              </li>
+              <li>
+                <span class="welcome-dot" style="background:#7c3aed"></span>
+                <span><strong>Color-coded &amp; synced:</strong> Pick a color for each counter and access your live totals on both your iPhone and computer.</span>
+              </li>
+            </ul>
+            <div class="welcome-start">
+              <strong>Where to start:</strong> Tap the button below to create your first counter, give it a name and color, then tap it to start counting.
+            </div>
+            <button class="btn-primary welcome-cta" id="welcome-create-btn">+ Create your first counter</button>
+          </div>
+        `
         : `<div class="counter-list">
             ${state.counters.map(c => `
               <button class="counter-card" data-open-id="${c.id}">
@@ -911,11 +1101,18 @@
 
       document.getElementById("sign-out-btn").addEventListener("click", () => signOut(auth));
       document.getElementById("new-counter-btn").addEventListener("click", () => openModal());
+
+      const welcomeCreateBtn = document.getElementById("welcome-create-btn");
+      if (welcomeCreateBtn) {
+        welcomeCreateBtn.addEventListener("click", () => openModal());
+      }
+
       app.querySelectorAll("[data-open-id]").forEach(btn => {
         btn.addEventListener("click", () => {
           state.activeCounterId = btn.dataset.openId;
           state.activeTab = "count";
           state.showPastDateForm = false;
+          state.showGoalForm = false;
           render();
         });
       });
@@ -923,6 +1120,10 @@
 
     function renderDetail(app, counter) {
       const total = getTotal(counter);
+      const streak = getDayStreak(counter);
+      const hasGoal = typeof counter.goal === "number" && Number.isFinite(counter.goal) && counter.goal > 0;
+      const missingForGoal = hasGoal ? Math.max(0, roundClean(counter.goal - total)) : 0;
+
       const sorted = getSortedEntries(counter);
       const lastEntry = sorted[sorted.length - 1];
       const lastText = lastEntry
@@ -932,13 +1133,39 @@
       let bodyHtml = "";
       if (state.activeTab === "count") {
         const pastFormHtml = state.showPastDateForm ? `
-          <form class="past-date-box" id="past-date-form">
-            <label class="past-date-label" for="past-datetime-input">Date &amp; Time</label>
+          <form class="inline-drawer" id="past-date-form">
+            <label class="drawer-label" for="past-datetime-input">Date &amp; Time</label>
             <input class="input" id="past-datetime-input" type="datetime-local" value="${toLocalDateTimeInputValue()}" required />
             <div class="custom-add-row">
               <input class="input" id="past-amount-input" type="number" step="any" value="1" placeholder="Amount" required />
               <button class="btn-add-custom" type="submit">Add Past</button>
             </div>
+          </form>
+        ` : "";
+
+        const goalStatusHtml = hasGoal
+          ? `
+            <div class="stat-note">Counts to Goal: <strong style="color:${counter.color}">${missingForGoal}</strong></div>
+            <button type="button" class="goal-sub-link" id="toggle-goal-btn">Goal: ${counter.goal} &middot; ${state.showGoalForm ? "Cancel" : "Edit"}</button>
+          `
+          : `
+            <div>
+              <button type="button" class="goal-sub-link" id="toggle-goal-btn">${state.showGoalForm ? "Hide goal" : "Set a goal..."}</button>
+            </div>
+          `;
+
+        const goalFormHtml = state.showGoalForm ? `
+          <form class="inline-drawer" id="goal-form">
+            <label class="drawer-label" for="goal-input">Target Goal</label>
+            <div class="custom-add-row">
+              <input class="input" id="goal-input" type="number" step="any" min="0.0001" value="${hasGoal ? counter.goal : ""}" placeholder="e.g. 100" required />
+              <button class="btn-add-custom" type="submit">Save</button>
+            </div>
+            ${hasGoal ? `
+              <div class="goal-actions">
+                <button type="button" class="btn-danger" id="clear-goal-btn">Remove goal</button>
+              </div>
+            ` : ""}
           </form>
         ` : "";
 
@@ -950,11 +1177,14 @@
               <input class="input" id="custom-amount-input" type="number" step="any" placeholder="Specific number (e.g. 5)" required />
               <button class="btn-add-custom" type="submit">Add</button>
             </form>
-            <button type="button" class="past-date-toggle" id="toggle-past-date-btn">
+            <button type="button" class="subtle-link" id="toggle-past-date-btn">
               ${state.showPastDateForm ? "Hide past date" : "Log past date..."}
             </button>
             ${pastFormHtml}
             <div class="last-entry-note">${lastText}</div>
+            <div class="stat-note">Days in a row: <strong style="color:${counter.color}">${streak}</strong></div>
+            ${goalStatusHtml}
+            ${goalFormHtml}
           </div>
         `;
       } else {
@@ -983,6 +1213,7 @@
       document.getElementById("back-btn").addEventListener("click", () => {
         state.activeCounterId = null;
         state.showPastDateForm = false;
+        state.showGoalForm = false;
         render();
       });
 
@@ -1020,6 +1251,27 @@
             addEntry(counter.id, amtVal, ts);
           });
         }
+        document.getElementById("toggle-goal-btn").addEventListener("click", () => {
+          state.showGoalForm = !state.showGoalForm;
+          render();
+        });
+        const goalForm = document.getElementById("goal-form");
+        if (goalForm) {
+          goalForm.addEventListener("submit", e => {
+            e.preventDefault();
+            const val = Number(document.getElementById("goal-input").value);
+            if (!Number.isFinite(val) || val <= 0) return;
+            state.showGoalForm = false;
+            saveGoal(counter.id, val);
+          });
+        }
+        const clearGoalBtn = document.getElementById("clear-goal-btn");
+        if (clearGoalBtn) {
+          clearGoalBtn.addEventListener("click", () => {
+            state.showGoalForm = false;
+            saveGoal(counter.id, null);
+          });
+        }
       } else {
         attachSheetListeners(app, counter);
       }
@@ -1043,7 +1295,7 @@
         `;
         let running = 0;
         const enriched = sorted.map(e => {
-          running += e.delta;
+          running = roundClean(running + e.delta);
           return { ...e, running };
         }).reverse();
 
@@ -1078,7 +1330,7 @@
             };
           }
           byDay[key].count += 1;
-          byDay[key].sum += e.delta;
+          byDay[key].sum = roundClean(byDay[key].sum + e.delta);
         });
 
         tableRows = Object.keys(byDay).sort().reverse().map(k => {
